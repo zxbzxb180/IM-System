@@ -35,7 +35,11 @@ func (u User) ListenMessage() {
 		if !ok {
 			fmt.Println("channel closed!")
 		}
-		u.conn.Write([]byte(msg + "\n"))
+		_, err := u.conn.Write([]byte(msg + "\n"))
+		if err != nil {
+			//fmt.Println("conn write err: ", err)
+			fmt.Println(fmt.Sprintf("conn write err: %+v", err))
+		}
 	}
 
 }

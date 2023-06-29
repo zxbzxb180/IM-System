@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"sync"
 )
@@ -49,6 +50,10 @@ func (s *Server) BoardCast(user *User, msg string) {
 	s.MsgChan <- sendMsg
 }
 
+//func (s *Server) ReceiveUserMessage(conn net.Conn, user *User)  {
+//
+//}
+
 func (s *Server) Handle(conn net.Conn) {
 	user := NewUser(conn)
 
@@ -60,6 +65,29 @@ func (s *Server) Handle(conn net.Conn) {
 	// 广播用户上线消息
 	s.BoardCast(user, "用户已上线")
 
+	// 接收用户信息
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		// 长度为0, 读到0代表对端关闭了
+		if n == 0 {
+			s.BoardCast(user, "用户已下线")
+			return
+		}
+		// 读取出错，且非end of file
+		if err != nil && err != io.EOF {
+			//fmt.Println("conn write err: ", err)
+			fmt.Println(fmt.Sprintf("conn write err: %+v", err))
+			return
+		}
+		// 提取用户消息
+		msg := string(buf[:n-1])
+
+		// 广播用户发送的消息
+		s.BoardCast(user, msg)
+
+	}
+
 }
 
 // 启动服务器
@@ -70,7 +98,12 @@ func (s *Server) Start() {
 		fmt.Println("net.Listen err:", err)
 		return
 	}
-	defer listen.Close()
+	defer func(listen net.Listener) {
+		err := listen.Close()
+		if err != nil {
+			fmt.Println("close listener err: ", err)
+		}
+	}(listen)
 
 	go s.ListenBoardCast()
 
