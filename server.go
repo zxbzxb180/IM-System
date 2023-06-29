@@ -55,15 +55,8 @@ func (s *Server) BoardCast(user *User, msg string) {
 //}
 
 func (s *Server) Handle(conn net.Conn) {
-	user := NewUser(conn)
-
-	// 用户加入OnlineMap
-	s.mapLock.Lock()
-	s.OnlineMap[user.Name] = user
-	s.mapLock.Unlock()
-
-	// 广播用户上线消息
-	s.BoardCast(user, "用户已上线")
+	user := NewUser(conn, s)
+	user.Online()
 
 	// 接收用户信息
 	buf := make([]byte, 4096)
@@ -71,7 +64,7 @@ func (s *Server) Handle(conn net.Conn) {
 		n, err := conn.Read(buf)
 		// 长度为0, 读到0代表对端关闭了
 		if n == 0 {
-			s.BoardCast(user, "用户已下线")
+			user.Offline()
 			return
 		}
 		// 读取出错，且非end of file
@@ -84,8 +77,8 @@ func (s *Server) Handle(conn net.Conn) {
 		msg := string(buf[:n-1])
 
 		// 广播用户发送的消息
+		// TODO user.SendMessage
 		s.BoardCast(user, msg)
-
 	}
 
 }
