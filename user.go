@@ -83,6 +83,28 @@ func (u *User) SendMessage(msg string, tUser *User) {
 				fmt.Println(fmt.Sprintf("conn write err: %+v", err.Error()))
 			}
 		}
+	} else if len(msg) > 1 && msg[0] == '@' {
+		splitName := strings.Split(msg[1:], "|")
+		if len(splitName) < 2 {
+			u.conn.Write([]byte("消息格式不正确，私聊请使用\"@张三|你好呀。\"格式。若不是私聊请勿使用@为开头\n"))
+			return
+		}
+		remoteName := splitName[0]
+		remoteUser, ok := u.server.OnlineMap[remoteName]
+		if !ok {
+			u.conn.Write([]byte("私聊用户不存在\n"))
+			return
+		}
+		if remoteName == u.Name {
+			u.conn.Write([]byte("无法给自己发送私聊消息\n"))
+			return
+		}
+		remoteMsg := strings.Join(splitName[1:], "|")
+		if remoteMsg == "" {
+			u.conn.Write([]byte("无消息内容，请重发\n"))
+			return
+		}
+		remoteUser.conn.Write([]byte(fmt.Sprintf("%v 对您说：%v \n", u.Name, remoteMsg)))
 	} else {
 		u.server.BoardCast(u, msg)
 	}

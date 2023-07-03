@@ -92,7 +92,7 @@ func (s *Server) Handle(conn net.Conn) {
 		select {
 		case <-isAlive:
 			// 什么都不需要做，从isAlive可以读到数据，判断用户在线，继续循环重置select
-		case <-time.After(10 * time.Second):
+		case <-time.After(100 * time.Second):
 			// 在进入select时，会同时判断多个case是否满足执行条件，达到准备就绪的状态，然后执行准备就绪的case
 			// time.After(10 * time.Second)在进入select时就已经执行，并返回了一个channel给select判断是否可读
 			// select在10秒后定时器触发，time.After(10 * time.Second)返回的channel可以读到数据了，达到准备就绪状态，就可以执行case里的代码了
