@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -58,27 +60,52 @@ func (s *Server) Handle(conn net.Conn) {
 	user := NewUser(conn, s)
 	user.Online()
 
-	// 接收用户信息
-	buf := make([]byte, 4096)
-	for {
-		n, err := conn.Read(buf)
-		// 长度为0, 读到0代表对端关闭了
-		if n == 0 {
-			user.Offline()
-			return
-		}
-		// 读取出错，且非end of file
-		if err != nil && err != io.EOF {
-			//fmt.Println("conn write err: ", err)
-			fmt.Println(fmt.Sprintf("conn write err: %+v", err))
-			return
-		}
-		// 提取用户消息
-		msg := string(buf[:n-1])
+	// 监听用户是否活跃的channel
+	isAlive := make(chan bool)
 
-		// 广播用户发送的消息
-		// TODO user.SendMessage
-		s.BoardCast(user, msg)
+	go func() {
+		// 接收用户信息
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			// 长度为0, 读到0代表对端关闭了
+			if n == 0 {
+				user.Offline()
+				return
+			}
+			// 读取出错，且非end of file
+			if err != nil && err != io.EOF {
+				//fmt.Println("conn write err: ", err)
+				fmt.Println(fmt.Sprintf("conn write err: %+v", err))
+				return
+			}
+			// 提取用户消息
+			msg := string(buf[:n-1])
+
+			// 广播用户发送的消息
+			user.SendMessage(msg, nil)
+
+			isAlive <- true
+		}
+	}()
+	for {
+		select {
+		case <-isAlive:
+			// 什么都不需要做，从isAlive可以读到数据，判断用户在线，继续循环重置select
+		case <-time.After(10 * time.Second):
+			// 在进入select时，会同时判断多个case是否满足执行条件，达到准备就绪的状态，然后执行准备就绪的case
+			// time.After(10 * time.Second)在进入select时就已经执行，并返回了一个channel给select判断是否可读
+			// select在10秒后定时器触发，time.After(10 * time.Second)返回的channel可以读到数据了，达到准备就绪状态，就可以执行case里的代码了
+			// 已经超时了，所以将用户强制下线，并退出循环
+			user.conn.Write([]byte("已超时\n"))
+			time.Sleep(1 * time.Second)
+			// 关闭用户channel
+			close(user.Chan)
+
+			// 退出当前协程
+			runtime.Goexit()
+
+		}
 	}
 
 }
